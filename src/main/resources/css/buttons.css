@@ -1,0 +1,122 @@
+.button, .split-menu-button {
+    /*-fx-background-color: orange;*/
+    -fx-text-fill: #fff;
+    -fx-border-style: none;
+    -fx-border-radius: 0;
+    -fx-background-radius: 0;
+    -fx-cursor: hand;
+    -fx-padding: 7 18;
+    /*
+    -fx-pref-width: 16;
+    -fx-pref-height: 16
+    */
+    /*-fx-underline: true;*/
+}
+
+.split-menu-button {
+    -fx-padding: 7 0 7 25
+}
+
+.button:disabled, .split-menu-button:disabled, .split-menu-button:disabled .arrow-button, .split-menu-button:disabled > .label {
+    -fx-background-color: #999;
+}
+
+.split-menu-button > .label {
+    -fx-background-color: orange;
+    -fx-text-fill: #fff;
+    -fx-padding: 0;
+}
+.split-menu-button .arrow-button {
+    -fx-background-color: orange;
+    -fx-text-fill: #fff;
+    -fx-background-image: url(../images/16x16/down.png);
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: 7 center;
+    -fx-padding: 0 15
+}
+.smb-mi {
+    -fx-background-color: #fff;
+    -fx-text-fill: #000;
+    -fx-padding: 8 10;
+}
+.smb-mi:hover {
+    -fx-background-color: orange;
+    -fx-text-fill: white;
+}
+.split-menu-button .arrow {
+    -fx-padding: 0
+}
+.cancel-button, .cancel, .button:cancel {
+    -fx-background-color: #666;
+}
+.ok-button, .button:default {
+    -fx-background-color: darkgreen;
+}
+.send-button {
+    -fx-background-color: #900000;
+}
+
+.icon-button {
+    -fx-background-position: 10 center;
+    -fx-background-repeat: no-repeat;
+    /*-fx-padding: 7 25 7 30*/
+}
+.create-button {
+    -fx-background-image: url(../images/16x16/create.png);
+    /*-fx-background-color: #3c9ff7*/
+}
+.remove-button {
+    -fx-background-image: url(../images/16x16/remove.png);
+    /*-fx-background-color: #900000*/
+}
+.edit-button {
+    -fx-background-image: url(../images/16x16/edit.png);
+}
+.connect-button {
+    -fx-background-image: url(../images/16x16/connect.png);
+}
+.disconnected-button {
+    -fx-background-image: url(../images/16x16/disconnected.png);
+}
+
+/*
+.dropdown-button {
+    -fx-background-image: url(../images/16x16/down.png);
+    -fx-background-position: right center;
+    -fx-background-repeat: no-repeat;
+    -fx-padding: 7 32 7 25;
+}
+*/
+
+.customer-container {
+    -fx-padding: 10;
+}
+
+.title-label {
+    /*-fx-text-fill: blue;*/
+    -fx-font-weight: bolder;
+    -fx-underline: true;
+    -fx-text-alignment: right;
+}
+
+.about-label {
+    -fx-font-size: 12;
+}
+
+.data-container {
+    -fx-padding: 10
+}
+
+.tab-content-area, .tab-header-background {
+    -fx-border-color: #666;
+    -fx-border-style: none;
+}
+
+.tab-header-background {
+    -fx-border-width: 1 1 0 1;
+}
+
+.tab-content-area {
+    -fx-padding: 10;
+    -fx-border-width: 0 1 1 1;
+}
