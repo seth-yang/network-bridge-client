@@ -1,0 +1,64 @@
+[
+    {
+        "shortOption": "c",
+        "longOption": "config",
+        "description": "path to config",
+        "requireValue": true,
+        "defaultValue": "../conf/network-bridge-client.conf"
+    },
+    {
+        "shortOption": "d",
+        "longOption": "database-file",
+        "description": "the sqlite file location",
+        "requireValue": true,
+        "defaultValue": "../database/network-bridge-client.db",
+        "propKey": "database.file"
+    },
+    {
+        "shortOption": "e",
+        "longOption": "ext-dir",
+        "description": "the path to extra config files",
+        "requireValue": true,
+        "defaultValue": "../conf.d"
+    },
+    {
+        "shortOption": "p",
+        "longOption": "sshd-port",
+        "description": "the sshd service listened",
+        "requireValue": true,
+        "defaultValue": "50022",
+        "propKey": "service.sshd.port"
+    },
+    {
+        "longOption": "ca-dir",
+        "description": "the dir to sshd certs",
+        "requireValue": true,
+        "defaultValue": "${user.home}/.ssh-server/known-hosts",
+        "propKey": "service.sshd.cert.file"
+    },
+    {
+        "shortOption":"v",
+        "longOption":"verbose",
+        "description":"enter verbose mode"
+    },
+    {
+        "longOption":"log-file",
+        "description":"the log file",
+        "requireValue":true,
+        "defaultValue":"../logs/network-bridge.log"
+    },
+    {
+        "longOption":"log-level",
+        "description":"the log level",
+        "requireValue":true,
+        "defaultValue":"INFO",
+        "values":[
+            {"value":"TRACE","desc":"trace, same to option -v"},
+            {"value":"DEBUG","desc":"debug"},
+            {"value":"INFO", "desc":"info"},
+            {"value":"WARN", "desc":"warn"},
+            {"value":"ERROR","desc":"error"},
+            {"value":"FATAL","desc":"fatal"}
+        ]
+    }
+]
