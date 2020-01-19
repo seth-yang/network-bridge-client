@@ -8,12 +8,14 @@ import org.dreamwork.db.SQLite;
 import org.dreamwork.network.sshd.Sshd;
 import org.dreamwork.network.sshd.data.SystemConfig;
 import org.dreamwork.persistence.DatabaseSchema;
+import org.dreamwork.tools.network.bridge.client.command.ProxyCommand;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
 import org.dreamwork.tools.network.bridge.client.data.schema.ProxySchema;
 import org.dreamwork.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import static org.dreamwork.tools.network.bridge.client.Keys.*;
 @IBootable (argumentDef = "network-bridge-client.json")
 public class CliMain {
     private final Logger logger = LoggerFactory.getLogger (CliMain.class);
+    private static final String sql  = "SELECT _value FROM t_sys_conf WHERE id = ?";
 
     public static void main (String[] args) throws InvocationTargetException {
         ApplicationBootloader.run (CliMain.class, args);
@@ -33,7 +36,13 @@ public class CliMain {
         Sshd sshd = new Sshd ();
         sshd.setConfiguration (conf);
         SQLite sqlite = sshd.initDatabase ();
+        initDatabase (sqlite);
+        sshd.registerCommands (new ProxyCommand (sqlite));
 
+        sshd.bind ();
+    }
+
+    private void initDatabase (SQLite sqlite) throws IOException {
         DatabaseSchema.register (ProxySchema.class);
         if (!sqlite.isTablePresent (Proxy.class)) {
             try (InputStream in = getClass ().getClassLoader ().getResourceAsStream ("client-schema.sql")) {
@@ -46,42 +55,25 @@ public class CliMain {
                     ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
             List<SystemConfig> list = new ArrayList<> ();
 
-            String sql  = "SELECT _value FROM t_sys_conf WHERE id = ?";
-            String host = sqlite.getSingleField (String.class, sql, KEY_NETWORK_HOST);
-            if (!StringUtil.isEmpty (host)) {
-                pc.setRawProperty (KEY_NETWORK_HOST, host);
-            } else {
-                SystemConfig sc = new SystemConfig ();
-                sc.setId (KEY_NETWORK_HOST);
-                sc.setValue (pc.getString (KEY_NETWORK_HOST));
-                list.add (sc);
-            }
-
-            Integer port = sqlite.getSingleField (Integer.class, sql, KEY_NETWORK_MANAGE_PORT);
-            if (port != null) {
-                pc.setRawProperty (KEY_NETWORK_MANAGE_PORT, String.valueOf (port));
-            } else {
-                SystemConfig sc = new SystemConfig ();
-                sc.setId (KEY_NETWORK_MANAGE_PORT);
-                sc.setValue (pc.getString (KEY_NETWORK_MANAGE_PORT));
-                list.add (sc);
-            }
-
-            port = sqlite.getSingleField (Integer.class, sql, KEY_NETWORK_TUNNEL_PORT);
-            if (port != null) {
-                pc.setRawProperty (KEY_NETWORK_TUNNEL_PORT, String.valueOf (port));
-            } else {
-                SystemConfig sc = new SystemConfig ();
-                sc.setId (KEY_NETWORK_TUNNEL_PORT);
-                sc.setValue (pc.getString (KEY_NETWORK_TUNNEL_PORT));
-                list.add (sc);
-            }
+            checkConfigItem (sqlite, pc, list, KEY_NETWORK_HOST);
+            checkConfigItem (sqlite, pc, list, KEY_NETWORK_MANAGE_PORT);
+            checkConfigItem (sqlite, pc, list, KEY_NETWORK_TUNNEL_PORT);
 
             if (!list.isEmpty ()) {
                 sqlite.save (list);
             }
         }
+    }
 
-        sshd.bind ();
+    private void checkConfigItem (SQLite sqlite, PropertyConfiguration pc, List<SystemConfig> list, String keyName) {
+        String value = sqlite.getSingleField (String.class, sql, keyName);
+        if (!StringUtil.isEmpty (value)) {
+            pc.setRawProperty (keyName, value);
+        } else {
+            SystemConfig sc = new SystemConfig ();
+            sc.setId (keyName);
+            sc.setValue (pc.getString (keyName));
+            list.add (sc);
+        }
     }
 }
