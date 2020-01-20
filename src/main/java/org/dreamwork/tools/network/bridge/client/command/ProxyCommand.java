@@ -6,27 +6,31 @@ import org.dreamwork.db.SQLite;
 import org.dreamwork.telnet.Console;
 import org.dreamwork.telnet.TerminalIO;
 import org.dreamwork.telnet.command.Command;
+import org.dreamwork.tools.network.bridge.client.ManagerClient;
+import org.dreamwork.tools.network.bridge.client.ProxyFactory;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
 import org.dreamwork.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ProxyCommand extends Command {
     private static final Logger logger = LoggerFactory.getLogger (ProxyCommand.class);
-    private static final String[] KNOWN_ACTIONS = {"help", "print", "add", "delete", "modify", "connect"};
+    private static final String[] KNOWN_ACTIONS = {"help", "print", "add", "delete", "modify", "connect", "disconnect"};
+    private static final Pattern P = Pattern.compile ("^--(.*?)=(.*?)$");
+    private static final Map<String, ManagerClient> clients = new HashMap<> ();
+
     private String action = "print";
     private String message;
     private String name, peer, port, mappingPort;
     private SQLite sqlite;
 
     public ProxyCommand (SQLite sqlite) {
-        super ("proxy", null, "proxy manage command");
+        super ("tunnel", null, "tunnel manage command");
         this.sqlite = sqlite;
     }
 
@@ -43,9 +47,10 @@ public class ProxyCommand extends Command {
             action = options [0];
 
             switch (action) {
-                case "del"  : action = "delete";  break;
-                case "mod"  : action = "modify";  break;
-                case "conn" : action = "connect"; break;
+                case "del"  : action = "delete";     break;
+                case "mod"  : action = "modify";     break;
+                case "conn" : action = "connect";    break;
+                case "dis"  : action = "disconnect"; break;
             }
         }
         boolean hit = false;
@@ -61,47 +66,56 @@ public class ProxyCommand extends Command {
         }
 
         options = translate (options);
-        if (options.length > 1) for (int i = 1; i < options.length; i ++) {
-            switch (options [i]) {
-                case "-n":
-                case "--name":
-                    name = options [++ i];
-                    break;
-                case "-m":
-                case "--mapping-port":
-                    mappingPort = options [++ i];
-                    break;
-                case "-P":
-                case "--peer-host":
-                    peer = options [++ i];
-                    break;
-                case "-p":
-                case "--peer-port":
-                    port = options [++ i];
-                    break;
+        if (options.length > 1) {
+            for (int i = 1; i < options.length; i ++) {
+                switch (options [i]) {
+                    case "-n":
+                    case "--name":
+                        name = options [++ i];
+                        break;
+                    case "-m":
+                    case "--mapping-port":
+                        mappingPort = options [++ i];
+                        break;
+                    case "-P":
+                    case "--peer-host":
+                        peer = options [++ i];
+                        break;
+                    case "-p":
+                    case "--peer-port":
+                        port = options [++ i];
+                        break;
+                    default:
+                        if (i == 1) {
+                            name = options [i];
+                        }
+                        break;
+                }
             }
         }
     }
 
     @Override
     public void showHelp (Console console) throws IOException {
-        help (console, TerminalIO.YELLOW, "proxy [command] [options]");
+        help (console, TerminalIO.YELLOW, "tunnel [command] [options]");
         help (console, TerminalIO.YELLOW, "where valid options are:");
-        help (console, TerminalIO.CYAN,   "  -n <name>          --name=<name>                  the name of the proxy");
+        help (console, TerminalIO.CYAN,   "  -n <name>          --name=<name>                  the name of the tunnel");
         help (console, TerminalIO.CYAN,   "  -m <mapping-port>  --mapping-port=<mapping-port>  the port will be mapped on the bridge server");
         help (console, TerminalIO.CYAN,   "  -P <peer-host>     --peer-host=<peer-host>        the address of local service server");
         help (console, TerminalIO.CYAN,   "  -p <peer-port>     --peer-port=<peer-port>        the port of local service");
         help (console, TerminalIO.YELLOW, "for show all created proxies:");
-        help (console, TerminalIO.CYAN,   "  proxy [print]");
-        help (console, TerminalIO.YELLOW, "for create a new proxy:");
-        help (console, TerminalIO.CYAN,   "  proxy add [-n <name>] [-s <mapping-port>] [-P <peer-host>] [-p <peer-port>]");
+        help (console, TerminalIO.CYAN,   "  tunnel [print]");
+        help (console, TerminalIO.YELLOW, "for create a new tunnel:");
+        help (console, TerminalIO.CYAN,   "  tunnel add [-n <name>] [-s <mapping-port>] [-P <peer-host>] [-p <peer-port>]");
         help (console, TerminalIO.CYAN,   "  will prompt to input any missing option(s)");
-        help (console, TerminalIO.YELLOW, "for delete a named proxy:");
-        help (console, TerminalIO.CYAN,   "  proxy del[ete] [-n] <name>");
-        help (console, TerminalIO.YELLOW, "for active a named proxy:");
-        help (console, TerminalIO.CYAN,   "  proxy conn[ect] [-n] <name>");
-        help (console, TerminalIO.YELLOW, "for update a named proxy:");
-        help (console, TerminalIO.CYAN,   "  proxy mod[ify] [-n] <name> [-s <mapping-port>] [-P <peer-host>] [-p <peer-port>]");
+        help (console, TerminalIO.YELLOW, "for delete a named tunnel:");
+        help (console, TerminalIO.CYAN,   "  tunnel del[ete] [-n] <name>");
+        help (console, TerminalIO.YELLOW, "for active a named tunnel:");
+        help (console, TerminalIO.CYAN,   "  tunnel conn[ect] [-n] <name>");
+        help (console, TerminalIO.YELLOW, "for shutdown a named tunnel:");
+        help (console, TerminalIO.CYAN,   "  tunnel dis[connect] [-n] <name>");
+        help (console, TerminalIO.YELLOW, "for update a named tunnel:");
+        help (console, TerminalIO.CYAN,   "  tunnel mod[ify] [-n] <name> [-s <mapping-port>] [-P <peer-host>] [-p <peer-port>]");
     }
 
     @Override
@@ -137,6 +151,9 @@ public class ProxyCommand extends Command {
                 case "connect":
                     connect (console);
                     break;
+                case "disconnect":
+                    disconnect (console);
+                    break;
             }
         } finally {
             resetOptions ();
@@ -145,7 +162,7 @@ public class ProxyCommand extends Command {
 
     private void performAdd (Console console) throws IOException {
         if (StringUtil.isEmpty (name)) {
-            name = console.readString ("please input proxy name", false);
+            name = console.readString ("please input tunnel name", false);
         }
 
         int service_port = -1;
@@ -180,8 +197,15 @@ public class ProxyCommand extends Command {
             );
         }
 
+        if (!checkName (console)) {
+            return;
+        }
+        if (!checkMappingPort (console, service_port)) {
+            return;
+        }
+
         console.println ("Please check the message: ");
-        console.write ("  the proxy name          : "); help (console, TerminalIO.MAGENTA, name);
+        console.write ("  the tunnel name          : "); help (console, TerminalIO.MAGENTA, name);
         console.write ("  the mapping port        : "); help (console, TerminalIO.MAGENTA, String.valueOf (service_port));
         console.write ("  the local server        : "); help (console, TerminalIO.MAGENTA, peer);
         console.write ("  the port of local server: "); help (console, TerminalIO.MAGENTA, String.valueOf (peer_port));
@@ -198,7 +222,7 @@ public class ProxyCommand extends Command {
         }
     }
 
-    private static final String[] HEADERS = {"Mapping Port", "Name", "Local Service"};
+    private static final String[] HEADERS = {"Mapping Port", "Name", "Local Service", "Status"};
     private void print (Console console) throws IOException {
         List<Proxy> list = sqlite.list (Proxy.class, "SELECT * FROM t_proxy ORDER BY name ASC");
         if (list == null || list.isEmpty ()) {
@@ -206,20 +230,34 @@ public class ProxyCommand extends Command {
             return;
         }
 
-        int[] width = {HEADERS[0].length (), HEADERS[1].length ()};
+        int[] width = {HEADERS[0].length (), HEADERS[1].length (), HEADERS[2].length ()};
+        String[][] data = new String[list.size ()][4];
+        int pos = 0;
         for (Proxy p : list) {
+            data [pos][0] = String.valueOf (p.servicePort);
+            data [pos][1] = p.name;
+            data [pos][2] = p.peer + ':' + p.peerPort;
+            data [pos][3] = StringUtil.isEmpty (p.status) ? "" : p.status;
             if (width[1] < p.name.length ()) {
                 width[1] = p.name.length ();
             }
+            if (width[2] < data[pos][2].length ()) {
+                width[2] = data[pos][2].length ();
+            }
+            pos ++;
         }
         console.print (TextFormater.fill (HEADERS[0], ' ', width[0], Alignment.Right));
         console.print ("  ");
         console.print (TextFormater.fill (HEADERS[1], ' ', width[1], Alignment.Left));
         console.print ("  ");
-        console.println (HEADERS[2]);
-        console.println (TextFormater.fill ("-", '-', width[0] + width[1] + HEADERS[2].length () + 4, Alignment.Left));
+        console.print (TextFormater.fill (HEADERS[2], ' ', width[2], Alignment.Left));
+        console.print ("  ");
+        console.println (HEADERS[3]);
+        // connected.length = 9
+        int line_width = width [0] + width[1] + width [2] + 15;
+        console.println (TextFormater.fill ("-", '-', line_width, Alignment.Left));
 
-        for (Proxy p : list) {
+        for (String[] line : data) {
 /*
             // draw the horizontal line
             console.print (TextFormater.fill ("-", '-', width[0], Alignment.Left));
@@ -231,24 +269,140 @@ public class ProxyCommand extends Command {
 */
 
             // print a row
-            console.print (TextFormater.fill (String.valueOf (p.servicePort), ' ', width[0], Alignment.Right));
+            console.print (TextFormater.fill (line[0], ' ', width[0], Alignment.Right));
             console.print ("  ");
-            console.print (TextFormater.fill (p.name, ' ', width[1], Alignment.Left));
+            console.print (TextFormater.fill (line[1], ' ', width[1], Alignment.Left));
             console.print ("  ");
-            console.println (p.peer + ":" + p.peerPort);
+            console.print (TextFormater.fill (line[2], ' ', width[2], Alignment.Left));
+            console.print ("  ");
+            console.println (line[3]);
         }
     }
 
     private void performDelete (Console console) throws IOException {
+        if (StringUtil.isEmpty (name)) {
+            console.errorln ("tunnel name is missing, assign it with the -n or --name option");
+            return;
+        }
 
+        String sql = "DELETE FROM t_proxy WHERE name = ?";
+        if (sqlite.executeUpdate (sql, name) > 0) {
+            console.println ("  delete success");
+        }
     }
 
     private void performUpdate (Console console) throws IOException {
+        if (StringUtil.isEmpty (name)) {
+            console.errorln ("tunnel name is missing, assign it with the -n or --name option");
+            return;
+        }
 
+        Map<String, Object> params = new HashMap<> ();
+
+        if (!StringUtil.isEmpty (mappingPort)) {
+            try {
+                int mapping_port = Integer.parseInt (mappingPort);
+                if (!checkMappingPort (console, mapping_port)) {
+                    return;
+                }
+
+                params.put ("mapping_port", mapping_port);
+            } catch (NumberFormatException nfe) {
+                console.errorln ("invalid port number");
+                return;
+            }
+        }
+
+        if (!StringUtil.isEmpty (port)) {
+            try {
+                int peer_port = Integer.parseInt (port);
+                if (!checkPort (console, peer_port)) {
+                    return;
+                }
+                params.put ("peer_port", peer_port);
+            } catch (NumberFormatException nfe) {
+                console.errorln ("invalid port number");
+                return;
+            }
+        }
+
+        if (!StringUtil.isEmpty (peer)) {
+            params.put ("peer", peer);
+        }
+
+        if (!params.isEmpty ()) {
+            StringBuilder builder = new StringBuilder ("UPDATE t_proxy SET ");
+            Object[] values = new Object[params.size () + 1];
+            int pos = 0;
+            for (Map.Entry<String, Object> e : params.entrySet ()) {
+                if (pos > 0) {
+                    builder.append (", ");
+                }
+                builder.append (e.getKey ()).append (" = ?");
+                values[pos ++] = e.getValue ();
+            }
+            builder.append (" WHERE name = ?");
+            values [pos] = name;
+            if (logger.isTraceEnabled ()) {
+                logger.trace ("sql: {}", builder);
+                logger.trace ("parameters: {}", Arrays.toString (values));
+            }
+
+            if (sqlite.executeUpdate (builder.toString (), values) > 0) {
+                console.println ("update success.");
+            }
+        }
     }
 
     private void connect (Console console) throws IOException {
+        if (StringUtil.isEmpty (name)) {
+            console.errorln ("tunnel name is missing, assign it with the -n or --name option");
+            return;
+        }
 
+        synchronized (clients) {
+            if (clients.containsKey (name)) {
+                console.print ("tunnel [" + name + "] connected");
+                return;
+            }
+
+            Proxy proxy = getProxyByName ();
+            if (!StringUtil.isEmpty (proxy.status)) {
+                console.errorln ("tunnel [" + name + "] already connected.");
+                return;
+            }
+
+            try {
+                ManagerClient client = ProxyFactory.createProxy (proxy);
+                clients.put (name, client);
+                proxy.status = "connected";
+                sqlite.update (proxy);
+                console.println ("tunnel [" + name + "] connected.");
+            } catch (Exception ex) {
+                logger.warn (ex.getMessage (), ex);
+                console.errorln ("create tunnel [" + name + "] failed.");
+            }
+        }
+    }
+
+    private void disconnect (Console console) throws IOException {
+        if (StringUtil.isEmpty (name)) {
+            console.errorln ("tunnel name is missing, assign it with the -n or --name option");
+            return;
+        }
+
+        Proxy proxy = getProxyByName ();
+        if (StringUtil.isEmpty (proxy.status)) {
+            console.errorln ("tunnel [" + name + "] is not connected");
+            return;
+        }
+
+        ManagerClient client = clients.get (name);
+        client.detach ();
+        clients.remove (name);
+        proxy.status = null;
+        sqlite.update (proxy);
+        console.println ("tunnel [" + name + "] disconnected.");
     }
 
     private void help (Console console, int color, String line) throws IOException {
@@ -259,10 +413,13 @@ public class ProxyCommand extends Command {
 
     private void resetOptions () {
         action = "print";
+        mappingPort = null;
+        peer = null;
+        port = null;
+        name = null;
         message = null;
     }
 
-    private static final Pattern P = Pattern.compile ("^--(.*?)=(.*?)$");
     private String[] translate (String... options) {
         List<String> list = new ArrayList<> ();
         for (String opt : options) {
@@ -278,5 +435,47 @@ public class ProxyCommand extends Command {
         }
         String[] a = new String[list.size ()];
         return list.toArray (a) ;
+    }
+
+    private boolean checkName (Console console) throws IOException {
+        if (StringUtil.isEmpty (name)) {
+            console.errorln ("tunnel name is missing, assign it with the -n or --name option");
+            return false;
+        }
+
+        Proxy proxy = getProxyByName ();
+        if (proxy != null) {
+            console.errorln ("the name [" + name + "] already exists");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkMappingPort (Console console, int service_port) throws IOException {
+        if (!checkPort (console, service_port)) {
+            return false;
+        }
+
+        String sql = "SELECT * FROM t_proxy WHERE service_port = ?";
+        Proxy proxy = sqlite.getSingle (Proxy.class, sql, service_port);
+        if (proxy != null) {
+            console.errorln ("the port [" + service_port + "] has mapped.");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkPort (Console console, int port) throws IOException {
+        if (port <= 0 || port > 65535) {
+            console.errorln ("invalid port number.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private Proxy getProxyByName () {
+        String sql = "SELECT * FROM t_proxy WHERE name = ?";
+        return sqlite.getSingle (Proxy.class, sql, name);
     }
 }
