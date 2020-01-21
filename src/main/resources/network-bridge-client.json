@@ -45,7 +45,7 @@
         "longOption":"log-file",
         "description":"the log file",
         "requireValue":true,
-        "defaultValue":"../logs/network-bridge.log"
+        "defaultValue":"../logs/network-bridge-client.log"
     },
     {
         "longOption":"log-level",
