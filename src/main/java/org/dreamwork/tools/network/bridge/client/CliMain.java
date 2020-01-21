@@ -53,6 +53,11 @@ public class CliMain {
 
             PropertyConfiguration pc = (PropertyConfiguration)
                     ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
+            if (pc == null) {
+                logger.error ("can't find the config file: {}, please check it in ../conf.d", KEY_CONFIG_NAME);
+                System.exit (-1);
+                return;
+            }
             List<SystemConfig> list = new ArrayList<> ();
 
             checkConfigItem (sqlite, pc, list, KEY_NETWORK_HOST);
