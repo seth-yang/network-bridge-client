@@ -37,6 +37,18 @@
         "propKey": "service.sshd.cert.file"
     },
     {
+        "longOption": "gui",
+        "description": "if this option presents, it will launch the GUI client",
+        "defaultValue": "false",
+        "propKey": "network.bridge.client.gui.enabled"
+    },
+    {
+        "longOption": "without-sshd",
+        "description": "if this option presents, it WILL NOT enable the sshd server",
+        "defaultValue": "false",
+        "propKey": "network.bridge.client.sshd.disabled"
+    },
+    {
         "shortOption":"v",
         "longOption":"verbose",
         "description":"enter verbose mode"
