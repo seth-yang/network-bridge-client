@@ -4,6 +4,8 @@ import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;
 import org.dreamwork.network.bridge.ConnectionInfo;
 import org.dreamwork.network.bridge.util.Helper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created by seth.yang on 2019/12/18
@@ -14,7 +16,8 @@ public class Tunnel {
 
     private String srcHost, dstHost;
     private int srcPort, dstPort;
-    private ConnectStatus status = ConnectStatus.Disconnected;
+
+    private Logger logger = LoggerFactory.getLogger (getClass ());
 
     public Tunnel (String srcHost, int srcPort, String dstHost, int dstPort) {
         this.srcHost = srcHost;
@@ -24,9 +27,17 @@ public class Tunnel {
     }
 
     public void connect () {
+        if (logger.isTraceEnabled ()) {
+            logger.trace ("trying to connect to {}:{}", srcHost, srcPort);
+        }
         info = Helper.connect (srcHost, srcPort, new IoHandlerAdapter () {
+            private Logger logger = LoggerFactory.getLogger (getClass ());
+
             @Override
             public void sessionCreated (IoSession session) {
+                if (logger.isTraceEnabled ()) {
+                    logger.trace ("north session opened: {}", session);
+                }
                 peer = Helper.connect (dstHost, dstPort, new IoHandlerAdapter () {
                     @Override
                     public void messageReceived (IoSession peer, Object message) {
@@ -41,9 +52,11 @@ public class Tunnel {
                         }
                     }
                 });
+                if (logger.isTraceEnabled ()) {
+                    logger.trace ("south session connected: {}", peer.session);
+                }
                 session.setAttribute ("peer", peer.session);
                 peer.session.setAttribute ("peer", session);
-                status = ConnectStatus.Connected;
             }
 
             @Override
@@ -56,41 +69,18 @@ public class Tunnel {
 
             @Override
             public void sessionClosed (IoSession session) {
-                if (status == ConnectStatus.Disconnecting) {
-                    IoSession peer = (IoSession) session.getAttribute ("peer");
-                    if (peer != null) {
-                        peer.closeNow ();
-                    }
-                    status = ConnectStatus.Disconnected;
-                    Tunnel.this.peer = null;
-                    info = null;
-                } else {
-                    disconnect ();
-                    connect ();
+                IoSession peer = (IoSession) session.getAttribute ("peer");
+                if (peer != null) {
+                    peer.closeNow ();
                 }
+
+                Tunnel.this.peer = null;
+                info = null;
             }
         });
     }
 
-    public void disconnect () {
-        status = ConnectStatus.Disconnecting;
-        if (peer != null) {
-            peer.session.closeNow ();
-            peer.connector.dispose ();
-        }
-        if (info != null) {
-            info.session.closeNow ();
-            info.connector.dispose ();
-        }
-        peer = null;
-        info = null;
-    }
-
     public IoSession getSession () {
         return info != null ? info.session : null;
-    }
-
-    enum ConnectStatus {
-        Connected, Disconnecting, Disconnected
     }
 }

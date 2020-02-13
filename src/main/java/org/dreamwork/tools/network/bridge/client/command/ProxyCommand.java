@@ -2,7 +2,7 @@ package org.dreamwork.tools.network.bridge.client.command;
 
 import org.dreamwork.cli.text.Alignment;
 import org.dreamwork.cli.text.TextFormater;
-import org.dreamwork.db.SQLite;
+import org.dreamwork.db.IDatabase;
 import org.dreamwork.telnet.Console;
 import org.dreamwork.telnet.TerminalIO;
 import org.dreamwork.telnet.command.Command;
@@ -27,11 +27,11 @@ public class ProxyCommand extends Command {
     private String action = "print";
     private String message;
     private String name, peer, port, mappingPort;
-    private SQLite sqlite;
+    private IDatabase database;
 
-    public ProxyCommand (SQLite sqlite) {
+    public ProxyCommand (IDatabase database) {
         super ("tunnel", null, "tunnel manage command");
-        this.sqlite = sqlite;
+        this.database = database;
     }
 
     @Override
@@ -205,7 +205,7 @@ public class ProxyCommand extends Command {
         }
 
         console.println ("Please check the message: ");
-        console.write ("  the tunnel name          : "); help (console, TerminalIO.MAGENTA, name);
+        console.write ("  the tunnel name         : "); help (console, TerminalIO.MAGENTA, name);
         console.write ("  the mapping port        : "); help (console, TerminalIO.MAGENTA, String.valueOf (service_port));
         console.write ("  the local server        : "); help (console, TerminalIO.MAGENTA, peer);
         console.write ("  the port of local server: "); help (console, TerminalIO.MAGENTA, String.valueOf (peer_port));
@@ -218,13 +218,13 @@ public class ProxyCommand extends Command {
             p.peerPort = peer_port;
             p.servicePort = service_port;
 
-            sqlite.save (p, false);
+            database.save (p, false);
         }
     }
 
     private static final String[] HEADERS = {"Mapping Port", "Name", "Local Service", "Status"};
     private void print (Console console) throws IOException {
-        List<Proxy> list = sqlite.list (Proxy.class, "SELECT * FROM t_proxy ORDER BY name ASC");
+        List<Proxy> list = database.list (Proxy.class, "SELECT * FROM t_proxy ORDER BY name ASC");
         if (list == null || list.isEmpty ()) {
             help (console, TerminalIO.CYAN, "No Proxies Saved.");
             return;
@@ -286,7 +286,7 @@ public class ProxyCommand extends Command {
         }
 
         String sql = "DELETE FROM t_proxy WHERE name = ?";
-        if (sqlite.executeUpdate (sql, name) > 0) {
+        if (database.executeUpdate (sql, name) > 0) {
             console.println ("  delete success");
         }
     }
@@ -348,7 +348,7 @@ public class ProxyCommand extends Command {
                 logger.trace ("parameters: {}", Arrays.toString (values));
             }
 
-            if (sqlite.executeUpdate (builder.toString (), values) > 0) {
+            if (database.executeUpdate (builder.toString (), values) > 0) {
                 console.println ("update success.");
             }
         }
@@ -367,16 +367,18 @@ public class ProxyCommand extends Command {
             }
 
             Proxy proxy = getProxyByName ();
+/*
             if (!StringUtil.isEmpty (proxy.status)) {
                 console.errorln ("tunnel [" + name + "] already connected.");
                 return;
             }
+*/
 
             try {
                 ManagerClient client = ProxyFactory.createProxy (proxy);
                 clients.put (name, client);
                 proxy.status = "connected";
-                sqlite.update (proxy);
+                database.update (proxy);
                 console.println ("tunnel [" + name + "] connected.");
             } catch (Exception ex) {
                 logger.warn (ex.getMessage (), ex);
@@ -398,10 +400,12 @@ public class ProxyCommand extends Command {
         }
 
         ManagerClient client = clients.get (name);
-        client.detach ();
+        if (client != null) {
+            client.detach ();
+        }
         clients.remove (name);
         proxy.status = null;
-        sqlite.update (proxy);
+        database.update (proxy);
         console.println ("tunnel [" + name + "] disconnected.");
     }
 
@@ -457,7 +461,7 @@ public class ProxyCommand extends Command {
         }
 
         String sql = "SELECT * FROM t_proxy WHERE service_port = ?";
-        Proxy proxy = sqlite.getSingle (Proxy.class, sql, service_port);
+        Proxy proxy = database.getSingle (Proxy.class, sql, service_port);
         if (proxy != null) {
             console.errorln ("the port [" + service_port + "] has mapped.");
             return false;
@@ -476,6 +480,6 @@ public class ProxyCommand extends Command {
 
     private Proxy getProxyByName () {
         String sql = "SELECT * FROM t_proxy WHERE name = ?";
-        return sqlite.getSingle (Proxy.class, sql, name);
+        return database.getSingle (Proxy.class, sql, name);
     }
 }
