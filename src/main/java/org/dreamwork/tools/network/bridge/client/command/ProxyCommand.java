@@ -1,14 +1,19 @@
 package org.dreamwork.tools.network.bridge.client.command;
 
+import org.dreamwork.app.bootloader.ApplicationBootloader;
 import org.dreamwork.cli.text.Alignment;
 import org.dreamwork.cli.text.TextFormater;
+import org.dreamwork.config.IConfiguration;
 import org.dreamwork.db.IDatabase;
+import org.dreamwork.network.service.ISystemConfigService;
+import org.dreamwork.network.service.ServiceFactory;
 import org.dreamwork.telnet.Console;
 import org.dreamwork.telnet.TerminalIO;
 import org.dreamwork.telnet.command.Command;
 import org.dreamwork.tools.network.bridge.client.ManagerClient;
 import org.dreamwork.tools.network.bridge.client.ProxyFactory;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
+import org.dreamwork.tools.network.bridge.client.data.ServerInfo;
 import org.dreamwork.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +22,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.dreamwork.tools.network.bridge.client.Keys.*;
 
 public class ProxyCommand extends Command {
     private static final Logger logger = LoggerFactory.getLogger (ProxyCommand.class);
@@ -367,15 +374,21 @@ public class ProxyCommand extends Command {
             }
 
             Proxy proxy = getProxyByName ();
-/*
-            if (!StringUtil.isEmpty (proxy.status)) {
-                console.errorln ("tunnel [" + name + "] already connected.");
-                return;
-            }
-*/
-
             try {
-                ManagerClient client = ProxyFactory.createProxy (proxy);
+
+                IConfiguration conf = ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
+                String host    = conf.getString (KEY_NETWORK_HOST);
+                int managePort = conf.getInt (KEY_NETWORK_MANAGE_PORT, 50041);
+                int tunnelPort = conf.getInt (KEY_NETWORK_TUNNEL_PORT, 50042);
+
+                ISystemConfigService service = ServiceFactory.get (ISystemConfigService.class);
+                ServerInfo server = new ServerInfo (
+                        service.getMergedValue (KEY_NETWORK_HOST, host),
+                        service.getMergedValue (KEY_NETWORK_MANAGE_PORT, managePort),
+                        service.getMergedValue (KEY_NETWORK_TUNNEL_PORT, tunnelPort)
+                );
+
+                ManagerClient client = ProxyFactory.createProxy (server, proxy);
                 clients.put (name, client);
                 proxy.status = "connected";
                 database.update (proxy);

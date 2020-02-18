@@ -4,16 +4,26 @@ import org.apache.mina.core.future.ConnectFuture;
 import org.apache.mina.core.service.IoHandler;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
-import org.dreamwork.app.bootloader.ApplicationBootloader;
-import org.dreamwork.config.IConfiguration;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
 import org.dreamwork.network.bridge.ConnectionInfo;
+import org.dreamwork.tools.network.bridge.client.data.ServerInfo;
 
 import java.net.InetSocketAddress;
-
-import static org.dreamwork.tools.network.bridge.client.Keys.*;
+import java.util.concurrent.TimeoutException;
 
 public class ProxyFactory {
+    public static ManagerClient createProxy (ServerInfo server, final Proxy proxy) throws TimeoutException {
+        ManagerClient client = new ManagerClient (proxy.name, server.host, server.managePort, proxy, proxy.peer, proxy.peerPort) {
+            @Override
+            protected int getMappingPort () {
+                return proxy.servicePort;
+            }
+        }.setTunnelPort (server.connectorPort);
+        client.attach ();
+        return client;
+    }
+
+/*
     public static ManagerClient createProxy (final Proxy proxy) {
         IConfiguration conf = ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
         String server = conf.getString (KEY_NETWORK_HOST);
@@ -28,6 +38,7 @@ public class ProxyFactory {
         client.attach ();
         return client;
     }
+*/
 
     public static ConnectionInfo connect (String host, int port, IoHandler handler) {
         NioSocketConnector connector = new NioSocketConnector ();

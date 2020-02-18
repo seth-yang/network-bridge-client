@@ -37,6 +37,20 @@
         "propKey": "service.sshd.cert.file"
     },
     {
+        "longOption": "manager-timeout",
+        "description": "the connection timeout of the tunnel manager, in second",
+        "requireValue": true,
+        "defaultValue": "30",
+        "propKey": "network.bridge.manage.timeout"
+    },
+    {
+        "longOption": "manager-heartbeat-interval",
+        "description": "the heartbeat interval of the tunnel manager, in seconds",
+        "requireValue": true,
+        "defaultValue": "15",
+        "propKey": "network.bridge.heartbeat.interval"
+    },
+    {
         "longOption": "gui",
         "description": "if this option presents, it will launch the GUI client",
         "defaultValue": "false",

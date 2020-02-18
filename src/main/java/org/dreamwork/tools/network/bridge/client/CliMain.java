@@ -6,12 +6,18 @@ import org.dreamwork.config.IConfiguration;
 import org.dreamwork.config.PropertyConfiguration;
 import org.dreamwork.db.IDatabase;
 import org.dreamwork.db.SQLite;
+import org.dreamwork.network.service.ISystemConfigService;
+import org.dreamwork.network.service.ServiceFactory;
+import org.dreamwork.network.service.impls.SystemConfigServiceImpl;
 import org.dreamwork.network.sshd.Sshd;
+import org.dreamwork.network.sshd.cmd.SystemConfigCommand;
 import org.dreamwork.network.sshd.data.SystemConfig;
 import org.dreamwork.network.sshd.data.schema.SystemConfigSchema;
 import org.dreamwork.persistence.DatabaseSchema;
 import org.dreamwork.tools.network.bridge.client.command.ProxyCommand;
 import org.dreamwork.tools.network.bridge.client.data.schema.ProxySchema;
+import org.dreamwork.tools.network.bridge.client.services.IClientMonitorService;
+import org.dreamwork.tools.network.bridge.client.services.impls.ClientMonitorServiceImpl;
 import org.dreamwork.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,14 +64,26 @@ public class CliMain {
         if (!list.isEmpty ()) {
             database.save (list);
         }
-//        }
+
+        {
+            ISystemConfigService service = new SystemConfigServiceImpl (database);
+            ServiceFactory.register (ISystemConfigService.class.getCanonicalName (), service);
+        }
+
+        {
+            IClientMonitorService service = new ClientMonitorServiceImpl ();
+            ServiceFactory.register (IClientMonitorService.class.getCanonicalName (), service);
+            // starting the client monitor
+            service.start ();
+            Runtime.getRuntime ().addShutdownHook (new Thread (service::stop));
+        }
 
         boolean sshdDisabled = conf.getBoolean ("network.bridge.client.sshd.disabled", false);
         if (!sshdDisabled) {
             // sshd server is enabled
             Sshd sshd = new Sshd (conf);
             sshd.init (database);
-            sshd.registerCommands (new ProxyCommand (database));
+            sshd.registerCommands (new ProxyCommand (database), new SystemConfigCommand (database));
 
             sshd.bind ();
         }

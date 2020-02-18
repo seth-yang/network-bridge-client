@@ -6,7 +6,7 @@
 
     <groupId>org.dreamwork</groupId>
     <artifactId>network-bridge-client</artifactId>
-    <version>1.0.0</version>
+    <version>0.9.9</version>
     <packaging>jar</packaging>
 
     <properties>
