@@ -97,17 +97,8 @@ public class TunnelHandler extends IoHandlerAdapter {
     public void sessionClosed (IoSession session) {
         if (logger.isTraceEnabled ()) {
             logger.trace ("closing tunnel[{}]", key);
-        }
-
-        if (logger.isTraceEnabled ()) {
             logger.trace ("closing the north connector");
         }
-/*
-        if (info != null) {
-            info.connector.dispose ();
-            info = null;
-        }
-*/
         logger.info ("the north connection of tunnel[{}] disconnected", key);
 
         if (logger.isTraceEnabled ()) {

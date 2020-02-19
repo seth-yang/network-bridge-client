@@ -5,10 +5,12 @@ import org.dreamwork.app.bootloader.ApplicationBootloader;
 import org.dreamwork.concurrent.Looper;
 import org.dreamwork.config.IConfiguration;
 import org.dreamwork.network.bridge.tunnel.data.Heartbeat;
+import org.dreamwork.tools.network.bridge.client.ManagerClient;
 import org.dreamwork.tools.network.bridge.client.services.IClientMonitorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +23,35 @@ public class ClientMonitorServiceImpl implements Runnable, IClientMonitorService
     private boolean running = true;
     private final Object LOCKER = new byte[0];
     private final Map<String, IoSession> sessions = new ConcurrentHashMap<> ();
+    private final Map<String, ManagerClient> clients = new HashMap<> ();
+
+    @Override
+    public boolean containsClient (String name) {
+        synchronized (clients) {
+            return clients.containsKey (name);
+        }
+    }
+
+    @Override
+    public void addClient (String name, ManagerClient client) {
+        synchronized (clients) {
+            clients.put (name, client);
+        }
+    }
+
+    @Override
+    public ManagerClient getClient (String name) {
+        synchronized (clients) {
+            return clients.get (name);
+        }
+    }
+
+    @Override
+    public void removeClient (String name) {
+        synchronized (clients) {
+            clients.remove (name);
+        }
+    }
 
     @Override
     public void watch (String name, IoSession session) {

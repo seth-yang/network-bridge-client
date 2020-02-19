@@ -14,6 +14,7 @@ import org.dreamwork.tools.network.bridge.client.ManagerClient;
 import org.dreamwork.tools.network.bridge.client.ProxyFactory;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
 import org.dreamwork.tools.network.bridge.client.data.ServerInfo;
+import org.dreamwork.tools.network.bridge.client.services.IClientMonitorService;
 import org.dreamwork.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,8 @@ public class ProxyCommand extends Command {
     private static final Logger logger = LoggerFactory.getLogger (ProxyCommand.class);
     private static final String[] KNOWN_ACTIONS = {"help", "print", "add", "delete", "modify", "connect", "disconnect"};
     private static final Pattern P = Pattern.compile ("^--(.*?)=(.*?)$");
-    private static final Map<String, ManagerClient> clients = new HashMap<> ();
 
+    private IClientMonitorService monitor;
     private String action = "print";
     private String message;
     private String name, peer, port, mappingPort;
@@ -39,6 +40,7 @@ public class ProxyCommand extends Command {
     public ProxyCommand (IDatabase database) {
         super ("tunnel", null, "tunnel manage command");
         this.database = database;
+        monitor = ServiceFactory.get (IClientMonitorService.class);
     }
 
     @Override
@@ -367,36 +369,33 @@ public class ProxyCommand extends Command {
             return;
         }
 
-        synchronized (clients) {
-            if (clients.containsKey (name)) {
-                console.print ("tunnel [" + name + "] connected");
-                return;
-            }
+        if (monitor.containsClient (name)) {
+            console.print ("tunnel [" + name + "] connected");
+            return;
+        }
 
-            Proxy proxy = getProxyByName ();
-            try {
+        Proxy proxy = getProxyByName ();
+        try {
+            IConfiguration conf = ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
+            String host    = conf.getString (KEY_NETWORK_HOST);
+            int managePort = conf.getInt (KEY_NETWORK_MANAGE_PORT, 50041);
+            int tunnelPort = conf.getInt (KEY_NETWORK_TUNNEL_PORT, 50042);
 
-                IConfiguration conf = ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
-                String host    = conf.getString (KEY_NETWORK_HOST);
-                int managePort = conf.getInt (KEY_NETWORK_MANAGE_PORT, 50041);
-                int tunnelPort = conf.getInt (KEY_NETWORK_TUNNEL_PORT, 50042);
+            ISystemConfigService service = ServiceFactory.get (ISystemConfigService.class);
+            ServerInfo server = new ServerInfo (
+                    service.getMergedValue (KEY_NETWORK_HOST, host),
+                    service.getMergedValue (KEY_NETWORK_MANAGE_PORT, managePort),
+                    service.getMergedValue (KEY_NETWORK_TUNNEL_PORT, tunnelPort)
+            );
 
-                ISystemConfigService service = ServiceFactory.get (ISystemConfigService.class);
-                ServerInfo server = new ServerInfo (
-                        service.getMergedValue (KEY_NETWORK_HOST, host),
-                        service.getMergedValue (KEY_NETWORK_MANAGE_PORT, managePort),
-                        service.getMergedValue (KEY_NETWORK_TUNNEL_PORT, tunnelPort)
-                );
-
-                ManagerClient client = ProxyFactory.createProxy (server, proxy);
-                clients.put (name, client);
-                proxy.status = "connected";
-                database.update (proxy);
-                console.println ("tunnel [" + name + "] connected.");
-            } catch (Exception ex) {
-                logger.warn (ex.getMessage (), ex);
-                console.errorln ("create tunnel [" + name + "] failed.");
-            }
+            ManagerClient client = ProxyFactory.createProxy (server, proxy);
+            monitor.addClient (name, client);
+            proxy.status = "connected";
+            database.update (proxy);
+            console.println ("tunnel [" + name + "] connected.");
+        } catch (Exception ex) {
+            logger.warn (ex.getMessage (), ex);
+            console.errorln ("create tunnel [" + name + "] failed.");
         }
     }
 
@@ -412,11 +411,11 @@ public class ProxyCommand extends Command {
             return;
         }
 
-        ManagerClient client = clients.get (name);
+        ManagerClient client = monitor.getClient (name);
         if (client != null) {
             client.detach ();
         }
-        clients.remove (name);
+        monitor.removeClient (name);
         proxy.status = null;
         database.update (proxy);
         console.println ("tunnel [" + name + "] disconnected.");

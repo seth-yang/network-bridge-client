@@ -2,6 +2,7 @@ package org.dreamwork.tools.network.bridge.client;
 
 import org.dreamwork.app.bootloader.ApplicationBootloader;
 import org.dreamwork.app.bootloader.IBootable;
+import org.dreamwork.concurrent.Looper;
 import org.dreamwork.config.IConfiguration;
 import org.dreamwork.config.PropertyConfiguration;
 import org.dreamwork.db.IDatabase;
@@ -15,6 +16,7 @@ import org.dreamwork.network.sshd.data.SystemConfig;
 import org.dreamwork.network.sshd.data.schema.SystemConfigSchema;
 import org.dreamwork.persistence.DatabaseSchema;
 import org.dreamwork.tools.network.bridge.client.command.ProxyCommand;
+import org.dreamwork.tools.network.bridge.client.data.Proxy;
 import org.dreamwork.tools.network.bridge.client.data.schema.ProxySchema;
 import org.dreamwork.tools.network.bridge.client.services.IClientMonitorService;
 import org.dreamwork.tools.network.bridge.client.services.impls.ClientMonitorServiceImpl;
@@ -55,14 +57,18 @@ public class CliMain {
             System.exit (-1);
             return;
         }
-        List<SystemConfig> list = new ArrayList<> ();
 
-        checkConfigItem (database, pc, list, KEY_NETWORK_HOST);
-        checkConfigItem (database, pc, list, KEY_NETWORK_MANAGE_PORT);
-        checkConfigItem (database, pc, list, KEY_NETWORK_TUNNEL_PORT);
+        {
+            // patching sys-config
+            List<SystemConfig> list = new ArrayList<> ();
 
-        if (!list.isEmpty ()) {
-            database.save (list);
+            checkConfigItem (database, pc, list, KEY_NETWORK_HOST);
+            checkConfigItem (database, pc, list, KEY_NETWORK_MANAGE_PORT);
+            checkConfigItem (database, pc, list, KEY_NETWORK_TUNNEL_PORT);
+
+            if (!list.isEmpty ()) {
+                database.save (list);
+            }
         }
 
         {
@@ -71,6 +77,7 @@ public class CliMain {
         }
 
         {
+            Looper.create (IClientMonitorService.LOOP_NAME, 16);
             IClientMonitorService service = new ClientMonitorServiceImpl ();
             ServiceFactory.register (IClientMonitorService.class.getCanonicalName (), service);
             // starting the client monitor
@@ -86,6 +93,21 @@ public class CliMain {
             sshd.registerCommands (new ProxyCommand (database), new SystemConfigCommand (database));
 
             sshd.bind ();
+        }
+
+        {
+            if (logger.isTraceEnabled ()) {
+                logger.trace ("checking for all tunnels to auto reconnect ... ");
+            }
+
+            List<Proxy> list = database.get (Proxy.class);
+            if (list != null && !list.isEmpty ()) {
+                IClientMonitorService monitor = ServiceFactory.get (IClientMonitorService.class);
+                for (Proxy proxy : list) {
+                    ManagerClient client = ProxyFactory.createProxy (proxy);
+                    monitor.addClient (proxy.name, client);
+                }
+            }
         }
     }
 

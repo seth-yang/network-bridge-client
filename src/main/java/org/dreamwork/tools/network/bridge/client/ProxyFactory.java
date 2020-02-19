@@ -1,19 +1,19 @@
 package org.dreamwork.tools.network.bridge.client;
 
-import org.apache.mina.core.future.ConnectFuture;
-import org.apache.mina.core.service.IoHandler;
-import org.apache.mina.core.session.IoSession;
-import org.apache.mina.transport.socket.nio.NioSocketConnector;
+import org.dreamwork.app.bootloader.ApplicationBootloader;
+import org.dreamwork.config.IConfiguration;
+import org.dreamwork.network.service.ISystemConfigService;
+import org.dreamwork.network.service.ServiceFactory;
 import org.dreamwork.tools.network.bridge.client.data.Proxy;
-import org.dreamwork.network.bridge.ConnectionInfo;
 import org.dreamwork.tools.network.bridge.client.data.ServerInfo;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.TimeoutException;
+
+import static org.dreamwork.tools.network.bridge.client.Keys.*;
 
 public class ProxyFactory {
     public static ManagerClient createProxy (ServerInfo server, final Proxy proxy) throws TimeoutException {
-        ManagerClient client = new ManagerClient (proxy.name, server.host, server.managePort, proxy, proxy.peer, proxy.peerPort) {
+        ManagerClient client = new ManagerClient (server.host, server.managePort, proxy) {
             @Override
             protected int getMappingPort () {
                 return proxy.servicePort;
@@ -23,31 +23,19 @@ public class ProxyFactory {
         return client;
     }
 
-/*
-    public static ManagerClient createProxy (final Proxy proxy) {
+    public static ManagerClient createProxy (final Proxy proxy) throws TimeoutException {
         IConfiguration conf = ApplicationBootloader.getConfiguration (KEY_CONFIG_NAME);
-        String server = conf.getString (KEY_NETWORK_HOST);
+        String host    = conf.getString (KEY_NETWORK_HOST);
         int managePort = conf.getInt (KEY_NETWORK_MANAGE_PORT, 50041);
         int tunnelPort = conf.getInt (KEY_NETWORK_TUNNEL_PORT, 50042);
-        ManagerClient client = new ManagerClient (proxy.name, server, managePort, proxy.peer, proxy.peerPort) {
-            @Override
-            protected int getMappingPort () {
-                return proxy.servicePort;
-            }
-        }.setTunnelPort (tunnelPort);
-        client.attach ();
-        return client;
-    }
-*/
 
-    public static ConnectionInfo connect (String host, int port, IoHandler handler) {
-        NioSocketConnector connector = new NioSocketConnector ();
-        connector.getSessionConfig ().setReuseAddress (true);
-        connector.setHandler (handler);
-        ConnectFuture future = connector.connect (new InetSocketAddress (host, port));
-        future.awaitUninterruptibly ();
-        IoSession session = future.getSession ();
+        ISystemConfigService service = ServiceFactory.get (ISystemConfigService.class);
+        ServerInfo server = new ServerInfo (
+                service.getMergedValue (KEY_NETWORK_HOST, host),
+                service.getMergedValue (KEY_NETWORK_MANAGE_PORT, managePort),
+                service.getMergedValue (KEY_NETWORK_TUNNEL_PORT, tunnelPort)
+        );
 
-        return new ConnectionInfo (connector, session);
+        return createProxy (server, proxy);
     }
 }
